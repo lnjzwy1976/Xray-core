@@ -40,6 +40,18 @@ import (
 	"github.com/xtls/xray-core/transport/internet/tls"
 	"github.com/xtls/xray-core/transport/pipe"
 )
+import (
+	"sync/atomic"
+	// ... 其他导入保持不变
+)
+
+// 全局 Vless 协程计数器
+var vlessGoroutineCount int64
+
+// GetVlessGoroutineCount 返回当前 Vless 协程数
+func GetVlessGoroutineCount() int64 {
+	return atomic.LoadInt64(&vlessGoroutineCount)
+}
 
 func init() {
 	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, config interface{}) (interface{}, error) {
@@ -307,6 +319,9 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 	}
 
 	postRequest := func() error {
+		atomic.AddInt64(&vlessGoroutineCount, 1)
+		defer atomic.AddInt64(&vlessGoroutineCount, -1)
+		
 		defer timer.SetTimeout(sessionPolicy.Timeouts.DownlinkOnly)
 
 		bufferWriter := buf.NewBufferedWriter(buf.NewWriter(conn))
@@ -367,6 +382,9 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 	}
 
 	getResponse := func() error {
+		atomic.AddInt64(&vlessGoroutineCount, 1)
+		defer atomic.AddInt64(&vlessGoroutineCount, -1)
+
 		defer timer.SetTimeout(sessionPolicy.Timeouts.UplinkOnly)
 
 		responseAddons, err := encoding.DecodeResponseHeader(conn, request)
@@ -404,7 +422,9 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 	if newCtx != nil {
 		ctx = newCtx
 	}
-
+	// 追踪 vless 连接的主协程
+	atomic.AddInt64(&vlessGoroutineCount, 1)
+	defer atomic.AddInt64(&vlessGoroutineCount, -1)
 	if err := task.Run(ctx, postRequest, task.OnSuccess(getResponse, task.Close(clientWriter))); err != nil {
 		return errors.New("connection ends").Base(err).AtInfo()
 	}
