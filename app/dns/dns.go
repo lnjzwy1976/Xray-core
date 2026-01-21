@@ -439,6 +439,10 @@ func asyncQueryAll(domain string, option dns.IPOption, clients []*Client, ctx co
 		}
 
 		go func(i int, c *Client) {
+			 // [DEBUG] 诊断协程创建
+	 		fmt.Fprintf(os.Stderr, "[DNS-DEBUG] Creating goroutine for domain=%s client=%s total_goroutines=%d\n", 
+	 			domain, c.Name(), runtime.NumGoroutine())
+	 		
 			qctx := ctx
 			if !c.server.IsDisableCache() {
 				nctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.timeoutMs*2)
