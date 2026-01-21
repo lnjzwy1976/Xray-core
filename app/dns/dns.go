@@ -19,7 +19,18 @@ import (
 	"github.com/xtls/xray-core/common/strmatcher"
 	"github.com/xtls/xray-core/features/dns"
 )
+import (
+	"sync/atomic"
+	// ... 其他导入保持不变
+)
 
+// 全局 DNS 协程计数器
+var dnsGoroutineCount int64
+
+// GetDNSGoroutineCount 返回当前 DNS 协程数
+func GetDNSGoroutineCount() int64 {
+	return atomic.LoadInt64(&dnsGoroutineCount)
+}
 // DNS is a DNS rely server.
 type DNS struct {
 	sync.Mutex
