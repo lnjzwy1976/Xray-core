@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xtls/xray-core/common"
@@ -25,6 +26,13 @@ import (
 	"github.com/xtls/xray-core/transport/pipe"
 )
 
+// 全局 Dispatcher 协程计数器
+var dispatcherGoroutineCount int64
+
+// GetDispatcherGoroutineCount 返回当前 Dispatcher 协程数
+func GetDispatcherGoroutineCount() int64 {
+	return atomic.LoadInt64(&dispatcherGoroutineCount)
+}
 var errSniffingTimeout = errors.New("timeout on sniffing")
 
 type cachedReader struct {
@@ -304,9 +312,13 @@ func (d *DefaultDispatcher) Dispatch(ctx context.Context, destination net.Destin
 	sniffingRequest := content.SniffingRequest
 	inbound, outbound := d.getLink(ctx)
 	if !sniffingRequest.Enabled {
+		atomic.AddInt64(&dispatcherGoroutineCount, 1)
+		defer atomic.AddInt64(&dispatcherGoroutineCount, -1)
 		go d.routedDispatch(ctx, outbound, destination)
 	} else {
 		go func() {
+			atomic.AddInt64(&dispatcherGoroutineCount, 1)
+			defer atomic.AddInt64(&dispatcherGoroutineCount, -1)
 			cReader := &cachedReader{
 				reader: outbound.Reader.(*pipe.Reader),
 			}
